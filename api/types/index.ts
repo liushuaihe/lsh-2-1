@@ -1,3 +1,37 @@
-import type { MatrixData, DecomposeRequest, DecomposeResponse, GenerateRequest, GenerateResponse } from '../../shared';
+import type { 
+  MatrixData, 
+  DecomposeRequest, 
+  DecomposeResponse, 
+  GenerateRequest, 
+  GenerateResponse,
+  MatrixRecord,
+  SaveRecordRequest,
+  SaveRecordResponse,
+  ListRecordsResponse,
+  GetRecordResponse,
+  DeleteRecordResponse,
+  FinetuneStep,
+  SimulateFinetuneRequest,
+  SimulateFinetuneResponse,
+  CalculateDeltaRequest,
+  CalculateDeltaResponse,
+} from '../../shared';
 
-export type { MatrixData, DecomposeRequest, DecomposeResponse, GenerateRequest, GenerateResponse };
+export type { 
+  MatrixData, 
+  DecomposeRequest, 
+  DecomposeResponse, 
+  GenerateRequest, 
+  GenerateResponse,
+  MatrixRecord,
+  SaveRecordRequest,
+  SaveRecordResponse,
+  ListRecordsResponse,
+  GetRecordResponse,
+  DeleteRecordResponse,
+  FinetuneStep,
+  SimulateFinetuneRequest,
+  SimulateFinetuneResponse,
+  CalculateDeltaRequest,
+  CalculateDeltaResponse,
+};

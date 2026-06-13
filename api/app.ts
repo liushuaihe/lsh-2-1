@@ -12,6 +12,14 @@ import path from 'path'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
 import { decomposeMatrix, generateMatrix } from './controllers/matrixController.js'
+import { calculateDelta, startFinetune } from './controllers/loraController.js'
+import {
+  listRecords,
+  getRecord,
+  saveRecord,
+  removeRecord,
+  clearRecords,
+} from './controllers/recordController.js'
 
 // for esm mode
 const __filename = fileURLToPath(import.meta.url)
@@ -31,6 +39,15 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
  */
 app.post('/api/decompose', decomposeMatrix)
 app.post('/api/generate', generateMatrix)
+
+app.post('/api/calculate-delta', calculateDelta)
+app.post('/api/finetune', startFinetune)
+
+app.get('/api/records', listRecords)
+app.get('/api/records/:id', getRecord)
+app.post('/api/records', saveRecord)
+app.delete('/api/records/:id', removeRecord)
+app.delete('/api/records', clearRecords)
 
 /**
  * health

@@ -1,12 +1,19 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { Search } from 'lucide-react';
 import { getColor, getMatrixBounds } from '../utils/colorMap';
 import type { HeatmapProps } from '../types';
 
-export function Heatmap({ data, colorScheme = 'warm' }: HeatmapProps) {
+export function Heatmap({ 
+  data, 
+  colorScheme = 'warm', 
+  showMagnifier = false,
+  magnifierScale = 1.0
+}: HeatmapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number; value: number } | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [magnifierPos, setMagnifierPos] = useState<{ x: number; y: number } | null>(null);
 
   const { min, max } = getMatrixBounds(data.data);
 
@@ -67,7 +74,72 @@ export function Heatmap({ data, colorScheme = 'warm' }: HeatmapProps) {
       ctx.lineTo(j * cellWidth, size);
       ctx.stroke();
     }
-  }, [data, colorScheme, min, max, canvasSize]);
+
+    if (showMagnifier && magnifierPos && magnifierScale !== 1.0) {
+      const magnifierRadius = 60;
+      const magnifierZoom = 2.5;
+      const sourceRadius = magnifierRadius / magnifierZoom;
+      
+      const mx = magnifierPos.x;
+      const my = magnifierPos.y;
+      
+      ctx.save();
+      
+      ctx.beginPath();
+      ctx.arc(mx, my, magnifierRadius, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      
+      const sourceX = mx - sourceRadius;
+      const sourceY = my - sourceRadius;
+      const sourceSize = sourceRadius * 2;
+      
+      ctx.imageSmoothingEnabled = false;
+      
+      const opacity = Math.min(1, Math.abs(magnifierScale - 1) * 0.8 + 0.2);
+      
+      for (let row = 0; row < data.rows; row++) {
+        for (let col = 0; col < data.cols; col++) {
+          const value = data.data[row][col];
+          const scaledValue = value * magnifierScale;
+          const color = getColor(scaledValue, min * magnifierScale, max * magnifierScale, colorScheme);
+          
+          const cellX = col * cellWidth;
+          const cellY = row * cellHeight;
+          
+          const destX = mx + (cellX - mx) * magnifierZoom;
+          const destY = my + (cellY - my) * magnifierZoom;
+          const destWidth = cellWidth * magnifierZoom;
+          const destHeight = cellHeight * magnifierZoom;
+          
+          ctx.globalAlpha = opacity;
+          ctx.fillStyle = color;
+          ctx.fillRect(destX, destY, destWidth + 1, destHeight + 1);
+        }
+      }
+      
+      ctx.restore();
+      
+      ctx.beginPath();
+      ctx.arc(mx, my, magnifierRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = magnifierScale > 1 ? '#f59e0b' : '#3b82f6';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      
+      const gradient = ctx.createRadialGradient(mx, my, magnifierRadius - 20, mx, my, magnifierRadius);
+      gradient.addColorStop(0, 'rgba(0,0,0,0)');
+      gradient.addColorStop(1, magnifierScale > 1 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)');
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(mx - 35, my + magnifierRadius + 5, 70, 22);
+      ctx.fillStyle = magnifierScale > 1 ? '#fbbf24' : '#60a5fa';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${magnifierScale.toFixed(1)}×`, mx, my + magnifierRadius + 21);
+    }
+  }, [data, colorScheme, min, max, canvasSize, showMagnifier, magnifierScale, magnifierPos]);
 
   useEffect(() => {
     draw();
@@ -93,6 +165,10 @@ export function Heatmap({ data, colorScheme = 'warm' }: HeatmapProps) {
     const col = Math.floor(x / cellWidth);
     const row = Math.floor(y / cellHeight);
     
+    if (showMagnifier && magnifierScale !== 1.0) {
+      setMagnifierPos({ x, y });
+    }
+    
     if (row >= 0 && row < data.rows && col >= 0 && col < data.cols) {
       setHoveredCell({
         row,
@@ -102,17 +178,18 @@ export function Heatmap({ data, colorScheme = 'warm' }: HeatmapProps) {
     } else {
       setHoveredCell(null);
     }
-  }, [data]);
+  }, [data, showMagnifier, magnifierScale]);
 
   const handleMouseLeave = useCallback(() => {
     setHoveredCell(null);
+    setMagnifierPos(null);
   }, []);
 
   return (
     <div ref={containerRef} className="relative w-full aspect-square">
       <canvas
         ref={canvasRef}
-        className="rounded-lg cursor-crosshair"
+        className={`rounded-lg ${showMagnifier && magnifierScale !== 1.0 ? 'cursor-crosshair' : 'cursor-crosshair'}`}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       />
@@ -127,6 +204,15 @@ export function Heatmap({ data, colorScheme = 'warm' }: HeatmapProps) {
           }}
         >
           [{hoveredCell.row}, {hoveredCell.col}]: {hoveredCell.value.toFixed(4)}
+        </div>
+      )}
+
+      {showMagnifier && magnifierScale !== 1.0 && !magnifierPos && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2 text-white/80 text-sm">
+            <Search className="w-4 h-4" />
+            <span>悬停查看 {magnifierScale.toFixed(1)}× 缩放效果</span>
+          </div>
         </div>
       )}
       
@@ -148,6 +234,19 @@ export function Heatmap({ data, colorScheme = 'warm' }: HeatmapProps) {
           style={{ background: getColor(max, min, max, colorScheme) }}
         />
       </div>
+
+      {showMagnifier && magnifierScale !== 1.0 && (
+        <div className="absolute top-2 left-2">
+          <div className={`px-2 py-1 rounded text-[10px] font-mono flex items-center gap-1 ${
+            magnifierScale > 1 
+              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
+              : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+          }`}>
+            <Search className="w-3 h-3" />
+            {magnifierScale.toFixed(1)}×
+          </div>
+        </div>
+      )}
     </div>
   );
 }

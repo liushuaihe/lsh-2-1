@@ -1,25 +1,56 @@
-import { RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { RefreshCw, Layers, ArrowRight, Plus, Minus } from 'lucide-react';
 import { MatrixCard } from '../components/MatrixCard';
 import { RankSlider } from '../components/RankSlider';
+import { AlphaSlider } from '../components/AlphaSlider';
 import { StatsPanel } from '../components/StatsPanel';
+import { FinetunePanel } from '../components/FinetunePanel';
+import { RecordPanel } from '../components/RecordPanel';
 import { useLora } from '../hooks/useLora';
 
 export default function Home() {
   const {
     rank,
+    alpha,
     isLoading,
+    isFinetuning,
     error,
     matrixW,
     matrixA,
     matrixB,
+    matrixDelta,
+    matrixDeltaScaled,
+    matrixUpdated,
     stats,
+    deltaStats,
+    finetuneSteps,
+    currentStepIndex,
+    records,
     setRank,
+    setAlpha,
     generateMatrix,
+    startFinetune,
+    setCurrentStepIndex,
+    saveCurrentRecord,
+    deleteRecord,
+    loadRecord,
   } = useLora();
+
+  const [currentSeed, setCurrentSeed] = useState(42);
+  const [activeTab, setActiveTab] = useState<'decompose' | 'delta' | 'finetune'>('decompose');
 
   const handleRefresh = () => {
     const newSeed = Math.floor(Math.random() * 10000);
+    setCurrentSeed(newSeed);
     generateMatrix(64, 64, newSeed);
+  };
+
+  const handleSaveRecord = () => {
+    saveCurrentRecord(currentSeed);
+  };
+
+  const handleStartFinetune = (steps: number, learningRate: number) => {
+    startFinetune(rank, alpha, steps, learningRate);
   };
 
   return (
@@ -42,12 +73,35 @@ export default function Home() {
           </div>
         )}
 
+        <div className="mb-6">
+          <RecordPanel
+            records={records}
+            onLoadRecord={loadRecord}
+            onDeleteRecord={deleteRecord}
+            onSaveCurrent={handleSaveRecord}
+            isLoading={isLoading}
+            currentSeed={currentSeed}
+          />
+        </div>
+
+        <div className="mb-6">
+          <FinetunePanel
+            steps={finetuneSteps}
+            currentStepIndex={currentStepIndex}
+            isFinetuning={isFinetuning}
+            onStartFinetune={handleStartFinetune}
+            onStepChange={setCurrentStepIndex}
+            rank={rank}
+            alpha={alpha}
+          />
+        </div>
+
         <div className="bg-zinc-800/30 backdrop-blur-sm rounded-2xl p-6 mb-8 border border-zinc-700/50">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-xl font-semibold text-white mb-1">矩阵分解可视化</h2>
+              <h2 className="text-xl font-semibold text-white mb-1">矩阵可视化</h2>
               <p className="text-sm text-zinc-400">
-                W' ≈ B × A，其中 W' 是低秩近似，B 是 r×m 矩阵，A 是 r×n 矩阵
+                观察原始矩阵、低秩分解、权重更新和 Alpha 缩放效果
               </p>
             </div>
             <button
@@ -60,18 +114,38 @@ export default function Home() {
             </button>
           </div>
 
+          <div className="flex gap-2 mb-6">
+            {[
+              { id: 'decompose', label: '矩阵分解', icon: <Layers className="w-4 h-4" /> },
+              { id: 'delta', label: '权重更新 ΔW', icon: <ArrowRight className="w-4 h-4" /> },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                    : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           {isLoading && !matrixW && (
             <div className="flex items-center justify-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
             </div>
           )}
 
-          {matrixW && matrixA && matrixB && (
+          {matrixW && matrixA && matrixB && activeTab === 'decompose' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <MatrixCard
                 data={matrixW}
-                title="原始矩阵 W"
-                subtitle="m × n 维参数矩阵"
+                title="原始矩阵 W₀"
+                subtitle="m × n 维预训练权重矩阵"
                 colorScheme="warm"
               />
               
@@ -90,17 +164,129 @@ export default function Home() {
               />
             </div>
           )}
+
+          {matrixDelta && matrixDeltaScaled && matrixUpdated && activeTab === 'delta' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <MatrixCard
+                  data={matrixDelta}
+                  title="ΔW = B × A"
+                  subtitle="未缩放的权重更新量"
+                  colorScheme="cool"
+                />
+                
+                <MatrixCard
+                  data={matrixDeltaScaled}
+                  title={`α × ΔW (${alpha.toFixed(1)}×)`}
+                  subtitle="Alpha 缩放后的更新量"
+                  colorScheme="warm"
+                  showMagnifier={true}
+                  magnifierScale={alpha}
+                />
+                
+                <MatrixCard
+                  data={matrixUpdated}
+                  title="W' = W₀ + α×ΔW"
+                  subtitle="更新后的权重矩阵"
+                  colorScheme="viridis"
+                />
+              </div>
+
+              <div className="bg-gradient-to-r from-blue-900/20 via-purple-900/20 to-amber-900/20 rounded-2xl p-6 border border-zinc-700/50">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  <span className="text-2xl">🔍</span>
+                  Alpha 缩放效果演示
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Minus className="w-4 h-4 text-blue-400" />
+                        <span className="text-zinc-400">缩小 (Alpha {'<'} 1)</span>
+                      </div>
+                      <span className="text-zinc-500">→</span>
+                      <span className="text-zinc-300">权重更新幅度减小，更保守</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Plus className="w-4 h-4 text-amber-400" />
+                        <span className="text-zinc-400">放大 (Alpha {'>'} 1)</span>
+                      </div>
+                      <span className="text-zinc-500">→</span>
+                      <span className="text-zinc-300">权重更新幅度增大，更激进</span>
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-2">
+                      💡 在中间的热力图上悬停鼠标，可以看到放大镜效果直观展示 Alpha 缩放如何改变数值大小
+                    </p>
+                  </div>
+                  <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-700/30">
+                    <div className="font-mono text-sm space-y-2">
+                      <p className="text-zinc-300">
+                        <span className="text-purple-400">ΔW</span> = B × A
+                      </p>
+                      <p className="text-zinc-300">
+                        <span className="text-amber-400">scaled_ΔW</span> = <span className="text-purple-400">α</span> × <span className="text-purple-400">ΔW</span>
+                      </p>
+                      <p className="text-zinc-300">
+                        <span className="text-green-400">W'</span> = <span className="text-blue-400">W₀</span> + <span className="text-amber-400">scaled_ΔW</span>
+                      </p>
+                      <p className="text-zinc-500 text-xs pt-2 border-t border-zinc-700/50">
+                        其中 α = Alpha × r，实际使用时常设为 α = r 使缩放因子为 1
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {deltaStats && (
+                  <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-700/30 text-center">
+                      <div className="text-2xl font-bold text-purple-400 font-mono">
+                        {deltaStats.deltaNorm.toFixed(4)}
+                      </div>
+                      <div className="text-xs text-zinc-500 mt-1">||ΔW||</div>
+                    </div>
+                    <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-700/30 text-center">
+                      <div className="text-2xl font-bold text-amber-400 font-mono">
+                        {deltaStats.deltaScaledNorm.toFixed(4)}
+                      </div>
+                      <div className="text-xs text-zinc-500 mt-1">||α×ΔW||</div>
+                    </div>
+                    <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-700/30 text-center">
+                      <div className="text-2xl font-bold text-pink-400 font-mono">
+                        {alpha.toFixed(2)}×
+                      </div>
+                      <div className="text-xs text-zinc-500 mt-1">缩放倍数</div>
+                    </div>
+                    <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-700/30 text-center">
+                      <div className="text-2xl font-bold text-green-400 font-mono">
+                        {deltaStats.updatedNorm.toFixed(4)}
+                      </div>
+                      <div className="text-xs text-zinc-500 mt-1">||W'||</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-zinc-800/30 backdrop-blur-sm rounded-2xl p-6 mb-8 border border-zinc-700/50">
-          <h2 className="text-xl font-semibold text-white mb-6">秩 (Rank) 控制</h2>
-          <div className="max-w-2xl mx-auto">
+          <h2 className="text-xl font-semibold text-white mb-6">超参数控制</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             <RankSlider
               value={rank}
               min={1}
               max={64}
               onChange={setRank}
-              disabled={isLoading}
+              disabled={isLoading || isFinetuning}
+            />
+            <AlphaSlider
+              value={alpha}
+              min={0}
+              max={10}
+              step={0.1}
+              onChange={setAlpha}
+              disabled={isLoading || isFinetuning}
             />
           </div>
         </div>
@@ -114,6 +300,12 @@ export default function Home() {
               savingRatio={stats.savingRatio}
               mse={stats.mse}
               rank={rank}
+              alpha={alpha}
+              deltaNorm={deltaStats?.deltaNorm}
+              deltaScaledNorm={deltaStats?.deltaScaledNorm}
+              updatedNorm={deltaStats?.updatedNorm}
+              originalNorm={deltaStats?.originalNorm}
+              scaleRatio={deltaStats?.scaleRatio}
             />
           </div>
         )}
@@ -133,9 +325,9 @@ export default function Home() {
               <h3 className="text-lg font-medium text-cyan-400 mb-2">数学公式</h3>
               <div className="bg-zinc-900/50 rounded-xl p-4 font-mono text-zinc-200">
                 <p className="mb-2">前向传播时：</p>
-                <p className="text-center text-lg">W' = W₀ + B × A</p>
+                <p className="text-center text-lg">W' = W₀ + (α/r) × B × A</p>
                 <p className="mt-4 text-sm text-zinc-400">
-                  其中 W₀ 是预训练权重，B 和 A 是可训练的低秩矩阵
+                  其中 W₀ 是预训练权重，B 和 A 是可训练的低秩矩阵，α 是缩放系数
                 </p>
               </div>
             </div>
@@ -145,7 +337,8 @@ export default function Home() {
             <h3 className="text-md font-medium text-blue-300 mb-2">💡 权衡关系</h3>
             <p className="text-zinc-300 text-sm leading-relaxed">
               <strong>秩 r 越小</strong>：参数量节省越多 → 训练速度越快、内存占用越小 → 但重构误差越大，模型表达能力受限<br />
-              <strong>秩 r 越大</strong>：重构误差越小，模型表达能力越强 → 但参数量节省减少，训练成本增加
+              <strong>秩 r 越大</strong>：重构误差越小，模型表达能力越强 → 但参数量节省减少，训练成本增加<br />
+              <strong>Alpha 越大</strong>：低秩更新的影响越大 → 模型更容易学习新知识 → 但可能导致灾难性遗忘
             </p>
           </div>
         </div>

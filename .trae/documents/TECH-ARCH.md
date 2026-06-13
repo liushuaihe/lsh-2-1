@@ -46,13 +46,19 @@ graph TD
 
 ## 2. 技术说明
 
-- **前端**：React@18 + TypeScript + Vite@5 + TailwindCSS@3
-- **初始化工具**：vite-init
-- **后端**：Express@4 + Node.js
-- **数值计算**：ml-matrix（纯JS矩阵运算库，支持SVD分解）
-- **可视化**：原生Canvas API绘制热力图（无需额外图表库）
-- **HTTP通信**：fetch API（原生）
-- **字体**：Google Fonts - Inter + JetBrains Mono
+* **前端**：React\@18 + TypeScript + Vite\@5 + TailwindCSS\@3
+
+* **初始化工具**：vite-init
+
+* **后端**：Express\@4 + Node.js
+
+* **数值计算**：ml-matrix（纯JS矩阵运算库，支持SVD分解）
+
+* **可视化**：原生Canvas API绘制热力图（无需额外图表库）
+
+* **HTTP通信**：fetch API（原生）
+
+* **字体**：Google Fonts - Inter + JetBrains Mono
 
 ## 3. 目录结构
 
@@ -96,9 +102,9 @@ lsh-2-1/
 
 ## 4. 路由定义
 
-| 路由 | 目的 |
-|------|------|
-| / | 主页面，包含所有交互组件 |
+| 路由 | 目的           |
+| -- | ------------ |
+| /  | 主页面，包含所有交互组件 |
 
 ## 5. API 定义
 
@@ -148,9 +154,11 @@ interface GenerateResponse {
 ### 5.2 API 端点
 
 #### POST /api/decompose
+
 对当前存储的矩阵进行指定秩的SVD分解
 
 **请求体**：
+
 ```json
 {
   "rank": 8
@@ -160,9 +168,11 @@ interface GenerateResponse {
 **响应**：`DecomposeResponse`
 
 #### POST /api/generate
+
 生成新的随机矩阵
 
 **请求体**（可选）：
+
 ```json
 {
   "rows": 64,
@@ -205,22 +215,32 @@ graph LR
 ## 7. 核心算法说明
 
 ### 7.1 SVD 低秩分解流程
+
 1. 对原始矩阵W(m×n)进行SVD分解：W = U×S×Vᵀ
-2. 取前r个奇异值，得到截断的U_r(m×r), S_r(r×r), V_r(r×n)
-3. 计算低秩近似：W_r = U_r × S_r × V_rᵀ
-4. 将W_r分解为两个矩阵：B = U_r × sqrt(S_r), A = sqrt(S_r) × V_rᵀ
-5. 这样 W_r ≈ B × A，其中B是r×m，A是m×r（根据LoRA convention调整维度）
+2. 取前r个奇异值，得到截断的U\_r(m×r), S\_r(r×r), V\_r(r×n)
+3. 计算低秩近似：W\_r = U\_r × S\_r × V\_rᵀ
+4. 将W\_r分解为两个矩阵：B = U\_r × sqrt(S\_r), A = sqrt(S\_r) × V\_rᵀ
+5. 这样 W\_r ≈ B × A，其中B是r×m，A是m×r（根据LoRA convention调整维度）
 
 ### 7.2 MSE 计算
-MSE = (1/(m×n)) × ΣᵢΣⱼ (W[i][j] - W'[i][j])²
+
+MSE = (1/(m×n)) × ΣᵢΣⱼ (W\[i]\[j] - W'\[i]\[j])²
 
 ### 7.3 参数量节省计算
-- 原始参数量：m × n
-- LoRA参数量：r × (m + n)
-- 节省比例：1 - (r × (m + n)) / (m × n)
+
+* 原始参数量：m × n
+
+* LoRA参数量：r × (m + n)
+
+* 节省比例：1 - (r × (m + n)) / (m × n)
 
 ## 8. 前端性能优化
-- 使用 Canvas 而非 DOM 渲染热力图，支持64×64=4096个单元格流畅更新
-- 滑块采用防抖（debounce）处理，避免频繁API请求（100ms延迟）
-- 矩阵数据使用 Float32Array 传输，减小网络开销
-- 使用 requestAnimationFrame 实现平滑的颜色过渡动画
+
+* 使用 Canvas 而非 DOM 渲染热力图，支持64×64=4096个单元格流畅更新
+
+* 滑块采用防抖（debounce）处理，避免频繁API请求（100ms延迟）
+
+* 矩阵数据使用 Float32Array 传输，减小网络开销
+
+* 使用 requestAnimationFrame 实现平滑的颜色过渡动画
+
